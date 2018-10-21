@@ -1,3 +1,3 @@
 #!/bin/bash
-OUTPUT="$(aubio tempo $1)"
+OUTPUT="$(aubio beat $1)"
 ./hack $1 $OUTPUT
