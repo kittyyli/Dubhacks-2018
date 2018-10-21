@@ -147,7 +147,7 @@ void connected_components_identifier(Mat src)
 
 #define SE(x) Mat se##x = getStructuringElement(MORPH_RECT, Size(x, x));
 
-Mat art(Mat src)
+Mat art(Mat src, bool beat = false)
 {
 #if 0
     Mat res;
@@ -285,7 +285,13 @@ Mat art(Mat src)
         floodFill(res2, mask, pt, color_vals[i], 0, Scalar(), Scalar(), (128 << 8) | 4);
     }
     return res2;    
-#elif 1 
+#elif 1
+    static float target_hue;
+    if(beat)
+    {
+        target_hue += 120 + rand() % 120;
+        target_hue = fmod(target_hue, 360);
+    }
     Mat blurred;
     blur(src, blurred, Size(3, 3));
     Mat canny_output;
@@ -295,9 +301,9 @@ Mat art(Mat src)
     findContours(canny_output, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
     Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
     Vec3f hsv;
-    hsv[0] = rand() % 360;
-    hsv[1] = 80 + rand() % 20;
-    hsv[2] = 8 0 + rand() % 20;
+    hsv[0] = target_hue;
+    hsv[1] = 200 + rand() % 55;
+    hsv[2] = 200 + rand() % 55;
     for(int i = 0; i < contours.size(); i++)
     {
 	Mat hsv2(1, 1, CV_8UC3, Scalar(fmod(hsv[0] + rand() % 40 - 20 + 360, 360), hsv[1], hsv[2]));
@@ -429,7 +435,7 @@ int bitrate_idx(uint8_t mpeg_version, uint8_t layer)
 template <typename T, int channels>
 double detect_beat(wav_header header, T *samples)
 {
-    constexpr double C = 2.5;
+    constexpr double C = 2.3;
     constexpr int num_seconds = 10;
     samples += header.sample_rate * channels * num_seconds * 2;
 
@@ -449,9 +455,7 @@ double detect_beat(wav_header header, T *samples)
 	}
 	local_e /= (1024 * channels);
 	if(C * e <= local_e) 
-	{
 	    num_of_beats++;
-	}
     }
     return (double)num_of_beats / num_seconds;
 }
@@ -512,18 +516,26 @@ int main(int argc, char** argv)
         return -1;
     }
     namedWindow("bork", CV_WINDOW_AUTOSIZE);
+    uint64_t ms_since_beat = 0;
     for(;;)
     {
+        bool beat = false;
+        if(ms_since_beat >= ms_per_beat)
+        {
+            cout << "beat, " << ms_since_beat << "ms " << endl;
+            beat = true;
+            ms_since_beat = 0;
+        }
         auto start = std::chrono::system_clock::now();
         Mat src;
         cap >> src;
-        Mat bork = art(src);
+        Mat bork = art(src, beat);
         imshow("bork", bork);
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<float> duration = end - start;
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
-        long long elapsed = ms.count();
-        if(waitKey(max(ms_per_beat - elapsed, 1LL)) >= 0) break;
+        ms_since_beat += ms.count();
+        if(waitKey(16) >= 0) break;
     }
     return 0;
 /*
