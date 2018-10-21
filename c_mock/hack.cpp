@@ -140,20 +140,56 @@ void connected_components_identifier(Mat src)
     imshow("Connected Components Transform", src);
 }
 
+#define SE(x) Mat se##x = getStructuringElement(MORPH_RECT, Size(x, x));
+
 Mat art(Mat src)
 {
+#if 0
     Mat res;
-    Canny(src, res, 150, 200, 3);
-/*    Mat se1 = getStructuringElement(MORPH_RECT, Size(1, 1));
-    Mat se3 = getStructuringElement(MORPH_RECT, Size(3, 3));
-    Mat se9 = getStructuringElement(MORPH_RECT, Size(9, 9));
+    blur(src, res, Size(3, 3));
+    Canny(src, res, 100, 200, 3);
+    SE(3);
+    SE(5);
+    Mat se_circle = getStructuringElement(MORPH_ELLIPSE, Size(7,  7));
+    morphologyEx(res, res, MORPH_DILATE, se_circle);
+    morphologyEx(res, res, MORPH_ERODE, se_circle);
+
+    Mat mask;
+    copyMakeBorder(res, mask, 1, 1, 1, 1, BORDER_REPLICATE);
+    Mat res2;
+    cvtColor(res, res2, CV_GRAY2BGR);
+    floodFill(res2, mask, Point(0, 0), cv::Scalar(rand() % 255, rand() % 255, rand() % 255), 0, cv::Scalar(), cv::Scalar(), 4 | (128 << 8));
+/*    morphologyEx(res, res, MORPH_DILATE, se3);
+    morphologyEx(res, res, MORPH_ERODE, se5);
+    morphologyEx(res, res, MORPH_DILATE, se5);
+    morphologyEx(res, res, MORPH_DILATE, se5);
+    bitwise_not(res, res);
+    SE(11);
+    morphologyEx(res, res, MORPH_ERODE, se3);
     morphologyEx(res, res, MORPH_DILATE, se3);
-    morphologyEx(res, res, MORPH_ERODE, se3);*/
-    return res;
+    morphologyEx(res, res, MORPH_DILATE, se5);*/
+    return res2;
+#else
+    Mat blurred;
+    blur(src, blurred, Size(3, 3));
+    Mat res;
+    Canny(blurred, res, 100, 200, 3);
+    vector<vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+    findContours(res, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+    Mat drawing = Mat::zeros(res.size(), CV_8UC3);
+    for(int i = 0; i < contours.size(); i++)
+    {
+        Scalar color(rand() % 255, rand() % 255, rand() % 255);
+        drawContours(drawing, contours, i, color, 1, CV_AA, hierarchy, 0, Point());
+    }
+    return drawing;
+#endif
 }
 
 int main(int argc, char** argv)
 {
+    srand(time(NULL));
     VideoCapture cap(0);
     if(!cap.isOpened())
     {
@@ -165,7 +201,6 @@ int main(int argc, char** argv)
     {
         Mat src;
         cap >> src;
-        printf("got frame\n");
         Mat bork = art(src);
         imshow("bork", bork);
         if(waitKey(30) >= 0) break;
