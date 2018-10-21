@@ -1,1 +1,3 @@
 hack
+*.dSYM
+.DS_Store
