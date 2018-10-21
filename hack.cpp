@@ -6,8 +6,10 @@
 #include <queue>
 #include <algorithm>
 #include <chrono>
+#include <bitset>
 
 using namespace cv;
+using namespace std;
 //For compatibility with opencv2
 namespace cv
 {
@@ -283,7 +285,7 @@ Mat art(Mat src)
         floodFill(res2, mask, pt, color_vals[i], 0, Scalar(), Scalar(), (128 << 8) | 4);
     }
     return res2;    
-#elif 1
+#elif 1 
     Mat blurred;
     blur(src, blurred, Size(3, 3));
     Mat canny_output;
@@ -292,9 +294,16 @@ Mat art(Mat src)
     vector<Vec4i> hierarchy;
     findContours(canny_output, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
     Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
+    Vec3f hsv;
+    hsv[0] = rand() % 360;
+    hsv[1] = 80 + rand() % 20;
+    hsv[2] = 8 0 + rand() % 20;
     for(int i = 0; i < contours.size(); i++)
     {
-        Scalar color(rand() % 255, rand() % 255, rand() % 255);
+	Mat hsv2(1, 1, CV_8UC3, Scalar(fmod(hsv[0] + rand() % 40 - 20 + 360, 360), hsv[1], hsv[2]));
+	Mat rgb;
+	cvtColor(hsv2, rgb, CV_HSV2BGR);
+ 	Scalar color = Scalar((int)rgb.at<cv::Vec3b>(0, 0)[0],(int)rgb.at<cv::Vec3b>(0, 0)[1],(int)rgb.at<cv::Vec3b>(0, 0)[2]);
         drawContours(drawing, contours, i, color, 1, CV_AA, hierarchy, 0, Point());
     }
     constexpr int kernel_size = 5;
@@ -343,8 +352,156 @@ Mat art(Mat src)
 #endif
 }
 
+struct mp3_header
+{
+    int blank : 6;
+    uint8_t channel_mode : 2;
+    bool priv : 1;
+    bool padding : 1;
+    uint8_t freq : 2;
+    uint8_t bitrate_idx : 4;
+    bool protection : 1;
+    uint8_t layer : 2;
+    uint8_t audio_version : 2;
+    uint16_t frame_sync : 11;
+};
+
+struct wav_header 
+{
+    uint32_t chunk_id;
+    uint32_t chunk_size;
+    uint32_t format;
+    uint32_t subchunk_id;
+    uint32_t subchunk1_size;
+    uint16_t audio_format;
+    uint16_t num_channels;
+    uint32_t sample_rate;
+    uint32_t byte_rate;
+    uint16_t block_align;
+    uint16_t bits_per_sample;
+    uint32_t subchunk2_id;
+    uint32_t subchunk2_size;
+};
+
+int bitrates[][5] =
+{
+    {0, 0, 0, 0, 0},
+    {32, 32, 32, 32, 8},
+    {64, 48, 40, 48, 16},
+    {96, 56, 48, 56, 24},
+    {128, 64, 56, 64, 32},
+    {160, 80, 64, 80, 40},
+    {192, 96, 80, 96, 48},
+    {224, 112, 96, 112, 56},
+    {256, 128, 112, 128, 64},
+    {288, 160, 128, 144, 80},
+    {320, 192, 160, 160, 96},
+    {352, 224, 192, 176, 112},
+    {384, 256, 224, 192, 128},
+    {416, 320, 256, 224, 144},
+    {448, 384, 320, 256, 160},
+    {-1, -1, -1, -1, -1},
+};
+
+int sample_rates[][4] = 
+{
+    {11025, 0, 22050, 44100},
+    {12000, 0, 24000, 48000},
+    {8000, 0, 16000, 32000},
+};
+
+int bitrate_idx(uint8_t mpeg_version, uint8_t layer)
+{
+    switch(mpeg_version)
+    {
+    case 0:
+    case 2:
+	if(layer == 1)
+	    return 3;
+	return 4;
+    case 3:
+	return 3 - layer;
+    default:
+	return -1;
+    }
+}
+
+template <typename T, int channels>
+double detect_beat(wav_header header, T *samples)
+{
+    constexpr double C = 2.5;
+    constexpr int num_seconds = 10;
+    samples += header.sample_rate * channels * num_seconds * 2;
+
+    double e = 0;
+    int num_of_beats = 0;
+    for(int i = 0; i < header.sample_rate * channels * num_seconds; i++)
+	e += samples[i] * samples[i];
+    e /= (header.sample_rate * channels * num_seconds);
+    int curr_idx = 0;
+    while(curr_idx < header.sample_rate * channels * num_seconds)
+    {
+	double local_e = 0;
+	for(int j = 0; j < 1024 * channels; j++)
+	{
+	    local_e += samples[curr_idx] * samples[curr_idx];
+	    curr_idx++;
+	}
+	local_e /= (1024 * channels);
+	if(C * e <= local_e) 
+	{
+	    num_of_beats++;
+	}
+    }
+    return (double)num_of_beats / num_seconds;
+}
+
+struct player
+{
+    player(char *argv)
+    {
+	string command = "exec afplay \"";
+	command += argv;
+	command += "\" &";
+	system(command.c_str());
+    }
+
+    ~player()
+    {
+	system("killall afplay");
+    }
+};
+
 int main(int argc, char** argv)
 {
+    player p(argv[1]);
+
+    FILE *f = fopen(argv[1], "r");
+    fseek(f, 0, SEEK_END);
+    size_t size = ftell(f);
+    rewind(f);
+    wav_header header;
+    fread(&header, sizeof(header), 1, f);
+    uint8_t *samples = (uint8_t *)malloc(size - sizeof(header));
+    fread(samples, sizeof(uint8_t), size - sizeof(header), f);
+    double beat_timing;
+    switch(header.bits_per_sample)
+    {
+    case 8:
+	beat_timing = header.num_channels == 1 ? detect_beat<uint8_t, 1>(header, samples) :
+	    detect_beat<uint8_t, 2>(header, samples);
+	break;
+    case 16:
+	beat_timing = header.num_channels == 1 ? detect_beat<int16_t, 1>(header, reinterpret_cast<int16_t *>(samples)) :
+	    detect_beat<int16_t, 2>(header, reinterpret_cast<int16_t *>(samples));
+	break;
+    default:
+	cout << "Wrong bit width: " << header.bits_per_sample << endl;
+    }
+    cout << "Beat Timing: " << beat_timing << endl;
+    
+    int64_t ms_per_beat = round(1000 / beat_timing);
+    
     constexpr int fps = 10;
     constexpr int total_duration = 1000 / fps;
     srand(time(NULL));
@@ -366,7 +523,36 @@ int main(int argc, char** argv)
         std::chrono::duration<float> duration = end - start;
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
         long long elapsed = ms.count();
-        if(waitKey(max(total_duration - elapsed, 1LL)) >= 0) break;
+        if(waitKey(max(ms_per_beat - elapsed, 1LL)) >= 0) break;
     }
+    return 0;
+/*
+//    uint8_t *mp3 = (uint8_t *)malloc(size);
+//    fread(mp3, sizeof(uint8_t), size, f);
+    
+
+    for(size_t i = 0; i < size; i++)
+    {
+	mp3_header h = *reinterpret_cast<mp3_header *>(mp3 + i);
+	uint32_t h2 = *reinterpret_cast<uint32_t *>(&h);
+//	bitset<32> bits(h2);
+//	cout << bits << endl;
+//	printf("%u \n", h.audio_version);
+	//sorry we can only deal with MPEG-2
+//	assert(h.audio_version == 0x2);
+	// 108 bytes per frame, 4 bytes for header
+	for (size_t j = i++; j < 26; j++) {
+//	    amp.push_back(
+	
+	if (h.frame_sync != 0b11111111111)
+	    continue;
+	
+	int bit_rate = bitrates[h.bitrate_idx][bitrate_idx(h.audio_version, h.layer)] * 1000;
+	int sample_rate = sample_rates[h.freq][h.layer];
+	int frame_length = (12 * bit_rate / sample_rate + 32 * h.padding) * 4;
+	if(h.layer < 3)
+	    frame_length = 144 * bit_rate / sample_rate + 8 * h.padding;
+    }
+*/
     return 0;
 }
