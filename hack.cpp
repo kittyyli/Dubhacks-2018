@@ -490,10 +490,7 @@ int main(int argc, char** argv)
     fread(samples, sizeof(uint8_t), size - sizeof(header), f);
     string aIn = argv[2];
     string parsed = aIn.substr(0, aIn.find(" "));
-    cout << parsed;
-    return 0;
-    double beat_timing = atof(argv[2]) / 60.0;
-    
+    double beat_timing = atof(parsed.c_str()) / 60.0; 
     int64_t ms_per_beat = round(1000 / beat_timing);
     
     constexpr int fps = 10;
