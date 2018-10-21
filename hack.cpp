@@ -490,7 +490,8 @@ int main(int argc, char** argv)
     fread(samples, sizeof(uint8_t), size - sizeof(header), f);
     string aIn = argv[2];
     string parsed = aIn.substr(0, aIn.find(" "));
-    double beat_timing = atof(parsed.c_str()) / 60.0; 
+    double beat_timing = atof(parsed.c_str()) / 60.0;
+    int64_t first_beat = round(atof(argv[3]) / 1000.0f);
     int64_t ms_per_beat = round(1000 / beat_timing);
     
     constexpr int fps = 10;
@@ -503,7 +504,7 @@ int main(int argc, char** argv)
         return -1;
     }
     namedWindow("bork", CV_WINDOW_AUTOSIZE);
-    uint64_t ms_since_beat = 0;
+    int64_t ms_since_beat = ms_per_beat - first_beat;
     for(;;)
     {
         bool beat = false;
