@@ -488,21 +488,11 @@ int main(int argc, char** argv)
     fread(&header, sizeof(header), 1, f);
     uint8_t *samples = (uint8_t *)malloc(size - sizeof(header));
     fread(samples, sizeof(uint8_t), size - sizeof(header), f);
-    double beat_timing;
-    switch(header.bits_per_sample)
-    {
-    case 8:
-	beat_timing = header.num_channels == 1 ? detect_beat<uint8_t, 1>(header, samples) :
-	    detect_beat<uint8_t, 2>(header, samples);
-	break;
-    case 16:
-	beat_timing = header.num_channels == 1 ? detect_beat<int16_t, 1>(header, reinterpret_cast<int16_t *>(samples)) :
-	    detect_beat<int16_t, 2>(header, reinterpret_cast<int16_t *>(samples));
-	break;
-    default:
-	cout << "Wrong bit width: " << header.bits_per_sample << endl;
-    }
-    cout << "Beat Timing: " << beat_timing << endl;
+    string aIn = argv[2];
+    string parsed = aIn.substr(0, aIn.find(" "));
+    cout << parsed;
+    return 0;
+    double beat_timing = atof(argv[2]) / 60.0;
     
     int64_t ms_per_beat = round(1000 / beat_timing);
     
