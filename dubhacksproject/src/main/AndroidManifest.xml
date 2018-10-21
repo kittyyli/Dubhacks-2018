@@ -2,25 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.miyang.dubhacksproject">
 
-    <application android:allowBackup="true" android:icon="@mipmap/ic_launcher"
-        <meta-data android:name="com.snapchat.kit.sdk.clientId" android:value="82c839a8-5f74-4236-833f-63f41af985e8" />
-        <provider
-            android:name="android.support.v4.content.FileProvider"
-            <!-- com.miyang? -->
-            android:authorities="com.miyang.dubhacksproject.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"
-                />
-        </provider>
-
-        android:label="@string/app_name" android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true" android:theme="@style/AppTheme">
-        <activity android:name=".FullscreenActivity"
-            android:configChanges="orientation|keyboardHidden|screenSize"
-            android:label="@string/app_name" android:theme="@style/FullscreenTheme">
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+        <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
